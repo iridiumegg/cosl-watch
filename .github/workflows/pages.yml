@@ -1,0 +1,56 @@
+name: Refresh COSL site
+
+# Rebuilds site/data.json from the live cosl.org catalog and deploys the
+# GitHub Pages dashboard. Runs on a daily schedule, and can be triggered
+# by hand from the Actions tab (Run workflow).
+
+on:
+  schedule:
+    - cron: "17 13 * * *"   # 13:17 UTC daily ≈ 8:17 AM Central
+  workflow_dispatch:
+  push:
+    branches: [main]        # redeploy when you edit the site/code
+    paths:
+      - "site/**"
+      - "build_data.py"
+      - "cosl_watch.py"
+      - ".github/workflows/pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys run at once; let a newer run supersede an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Scrape catalog -> site/data.json
+        run: python build_data.py
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

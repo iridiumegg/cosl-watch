@@ -1,0 +1,9 @@
+# Local email-run artifacts (the Windows Task Scheduler job produces these)
+cosl_digest_*.html
+cosl_watch.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

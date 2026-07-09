@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COSL Tax-Auction Watch</title>
+<style>
+  :root{
+    --ground:#eef1f6; --panel:#ffffff; --panel-2:#f6f8fb;
+    --line:#dbe1ea; --line-soft:#e7ebf2;
+    --ink:#131722; --muted:#626b7d; --secondary:#4a5365;
+    --teal:#0e9c8f; --teal-bright:#12b5a5; --blue:#2f7fc4;
+    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4;
+    --shadow:0 1px 2px rgba(19,23,34,.06),0 8px 24px rgba(19,23,34,.05);
+    --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code","Segoe UI Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0a0c10; --panel:#12161e; --panel-2:#161b24;
+      --line:#1f2632; --line-soft:#181d27;
+      --ink:#e8ecf8; --muted:#6b7488; --secondary:#9aa3ba;
+      --teal:#3dd6c8; --teal-bright:#3dd6c8; --blue:#4fa3e0;
+      --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#eef1f6; --panel:#ffffff; --panel-2:#f6f8fb;
+    --line:#dbe1ea; --line-soft:#e7ebf2;
+    --ink:#131722; --muted:#626b7d; --secondary:#4a5365;
+    --teal:#0e9c8f; --teal-bright:#12b5a5; --blue:#2f7fc4;
+    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4;
+    --shadow:0 1px 2px rgba(19,23,34,.06),0 8px 24px rgba(19,23,34,.05);
+  }
+  :root[data-theme="dark"]{
+    --ground:#0a0c10; --panel:#12161e; --panel-2:#161b24;
+    --line:#1f2632; --line-soft:#181d27;
+    --ink:#e8ecf8; --muted:#6b7488; --secondary:#9aa3ba;
+    --teal:#3dd6c8; --teal-bright:#3dd6c8; --blue:#4fa3e0;
+    --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{background:var(--ground);}
+  body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);
+       margin:0;-webkit-font-smoothing:antialiased;line-height:1.5;}
+  .page{max-width:1120px;margin:0 auto;padding:40px 24px 64px;}
+
+  .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin:0 0 10px;}
+  h1{font-size:clamp(28px,5vw,42px);line-height:1.05;margin:0;font-weight:750;
+     letter-spacing:-.02em;text-wrap:balance;}
+  h1 .accent{color:var(--teal);}
+  .lede{color:var(--secondary);font-size:14.5px;margin:14px 0 0;max-width:64ch;}
+  .lede b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums;}
+  .sales{margin:8px 0 0;color:var(--muted);font-size:12.5px;
+    display:flex;flex-wrap:wrap;gap:6px 18px;}
+  .sales span{white-space:nowrap;}
+  .sales b{color:var(--secondary);font-weight:600;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;margin:30px 0 22px;}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px 16px 15px;box-shadow:var(--shadow);position:relative;
+    display:flex;flex-direction:column;gap:3px;text-align:left;color:inherit;
+    font-family:inherit;cursor:default;transition:border-color .15s,transform .1s;}
+  button.tile{cursor:pointer;}
+  button.tile:hover{border-color:var(--muted);}
+  button.tile:active{transform:translateY(1px);}
+  .tile .num{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;
+    letter-spacing:-.02em;line-height:1;}
+  .tile .lbl{font-size:11.5px;color:var(--muted);letter-spacing:.04em;
+    text-transform:uppercase;font-weight:600;display:flex;align-items:center;gap:7px;}
+  .tile .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .tile.f3 .dot{background:var(--flag3);} .tile.f3 .num{color:var(--flag3);}
+  .tile.f2 .dot{background:var(--flag2);} .tile.f2 .num{color:var(--flag2);}
+  .tile.f1 .dot{background:var(--flag1);} .tile.f1 .num{color:var(--flag1);}
+  button.tile[aria-pressed="true"]{border-color:currentColor;
+    box-shadow:var(--shadow),inset 0 0 0 1px currentColor;}
+  .tile.f3[aria-pressed="true"]{border-color:var(--flag3);color:var(--flag3);}
+  .tile.f2[aria-pressed="true"]{border-color:var(--flag2);color:var(--flag2);}
+  .tile.f1[aria-pressed="true"]{border-color:var(--flag1);color:var(--flag1);}
+  .tile.all[aria-pressed="true"]{border-color:var(--teal);color:var(--teal);}
+  .tile.all .num{color:var(--ink);}
+  .tile.money .num{color:var(--teal);font-size:23px;}
+  .tile.money{cursor:default;}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;
+    justify-content:space-between;margin:0 0 16px;
+    padding:14px 4px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .chips .ttl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin-right:2px;}
+  .chip{font-family:inherit;font-size:12.5px;color:var(--secondary);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:20px;
+    padding:5px 13px;cursor:pointer;transition:all .13s;display:inline-flex;gap:6px;
+    align-items:center;font-weight:550;}
+  .chip:hover{border-color:var(--muted);color:var(--ink);}
+  .chip .c{font-variant-numeric:tabular-nums;color:var(--muted);font-size:11px;}
+  .chip[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);
+    color:#07100f;font-weight:650;}
+  .chip[aria-pressed="true"] .c{color:#07100f;opacity:.7;}
+  .search{position:relative;}
+  .search input{font-family:inherit;font-size:13px;color:var(--ink);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px 8px 32px;width:210px;max-width:46vw;transition:border-color .13s;}
+  .search input:focus{outline:none;border-color:var(--teal);}
+  .search input::placeholder{color:var(--muted);}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+    width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2;}
+
+  .tablewrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:var(--panel);box-shadow:var(--shadow);}
+  .scroll{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:720px;}
+  thead th{position:sticky;top:0;background:var(--panel-2);z-index:2;
+    text-align:left;color:var(--muted);font-weight:600;font-size:11px;
+    letter-spacing:.06em;text-transform:uppercase;padding:11px 14px;
+    border-bottom:1px solid var(--line);white-space:nowrap;}
+  th.sortable{cursor:pointer;user-select:none;}
+  th.sortable:hover{color:var(--ink);}
+  th .arrow{opacity:0;margin-left:3px;font-size:9px;}
+  th.sorted .arrow{opacity:1;color:var(--teal);}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums;
+    font-family:var(--font-mono);white-space:nowrap;}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line-soft);
+    vertical-align:middle;color:var(--secondary);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover td{background:var(--panel-2);}
+  td.bid{color:var(--ink);font-weight:600;}
+  td.sale{font-family:var(--font-mono);color:var(--muted);font-size:12px;}
+  td.parcel a,td.parcel span{font-family:var(--font-mono);font-size:12.5px;
+    color:var(--teal);text-decoration:none;}
+  td.parcel a:hover{text-decoration:underline;}
+  td.parcel span{color:var(--secondary);}
+  .cty{display:inline-block;font-size:11px;font-weight:600;color:var(--secondary);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    padding:2px 8px;white-space:nowrap;}
+  td.legal{color:var(--muted);font-size:12px;max-width:340px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;}
+  .tag{display:inline-block;font-size:10.5px;font-weight:650;letter-spacing:.02em;
+    padding:2px 9px;border-radius:20px;white-space:nowrap;border:1px solid;}
+  .tag.f3{color:var(--flag3);background:color-mix(in srgb,var(--flag3) 13%,transparent);
+    border-color:color-mix(in srgb,var(--flag3) 34%,transparent);}
+  .tag.f2{color:var(--flag2);background:color-mix(in srgb,var(--flag2) 13%,transparent);
+    border-color:color-mix(in srgb,var(--flag2) 34%,transparent);}
+  .tag.f1{color:var(--flag1);background:color-mix(in srgb,var(--flag1) 13%,transparent);
+    border-color:color-mix(in srgb,var(--flag1) 34%,transparent);}
+  .tag.f0{color:var(--muted);border-color:var(--line);}
+  .dash{color:var(--muted);}
+
+  .resultbar{display:flex;justify-content:space-between;align-items:baseline;
+    margin:14px 2px 0;color:var(--muted);font-size:12.5px;flex-wrap:wrap;gap:8px;}
+  .resultbar b{color:var(--secondary);font-variant-numeric:tabular-nums;}
+  .state{padding:48px 20px;text-align:center;color:var(--muted);font-size:14px;}
+  .state.err{color:var(--flag3);}
+  .spin{display:inline-block;width:15px;height:15px;margin-right:8px;
+    border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;
+    vertical-align:-3px;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:11.5px;line-height:1.6;max-width:78ch;}
+  footer b{color:var(--secondary);font-weight:600;}
+  footer .src{margin-top:8px;color:var(--muted);opacity:.8;}
+
+  @media (max-width:560px){
+    .page{padding:28px 14px 48px;}
+    .toolbar{flex-direction:column;align-items:stretch;}
+    .search input{width:100%;max-width:none;}
+    td.legal{max-width:180px;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <p class="eyebrow">Arkansas &middot; Commissioner of State Lands</p>
+    <h1>Tax-Auction <span class="accent">Watch</span></h1>
+    <p class="lede" id="lede">Loading the latest catalog&hellip;</p>
+    <p class="sales" id="sales"></p>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <div class="chips" id="countyChips"><span class="ttl">County</span></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      <input id="search" type="search" placeholder="Search parcel, owner, legal&hellip;" autocomplete="off" aria-label="Search parcels">
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Sale&nbsp;#</th>
+            <th>County</th>
+            <th>Parcel</th>
+            <th class="num sortable" data-sort="amount">Opening&nbsp;Bid<span class="arrow">&#9660;</span></th>
+            <th class="num sortable" data-sort="acres">Acres<span class="arrow">&#9660;</span></th>
+            <th>Flag</th>
+            <th>Legal / Owner</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="state" id="state"><span class="spin"></span>Loading the latest catalog&hellip;</div>
+  </div>
+
+  <div class="resultbar" id="resultbar" hidden>
+    <span>Showing <b id="shown">0</b> of <b id="total">0</b> tracked parcels</span>
+    <span id="filtnote"></span>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const usd = n => '$' + Math.round(n).toLocaleString('en-US');
+const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate = s=>{const[m,d,y]=s.split(' ')[0].split('/');
+  return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric'});};
+const TAG={3:'f3',2:'f2',1:'f1',0:'f0'};
+
+function init(DATA){
+  const P = DATA.parcels;
+  const cnt = pr => P.filter(p=>p.priority===pr).length;
+  const totalOwed = P.reduce((s,p)=>s+p.amount,0);
+
+  document.getElementById('state').remove();
+  document.getElementById('toolbar').hidden = false;
+  document.getElementById('resultbar').hidden = false;
+
+  document.getElementById('lede').innerHTML =
+    `<b>${P.length}</b> active parcels across <b>${DATA.counties.length}</b> Northwest Arkansas counties, `+
+    `ranked by resale opportunity. Redemption closes 4&nbsp;PM the business day before each sale, `+
+    `so parcels drop off day to day &mdash; last refreshed <b>${esc(DATA.generated)}</b>.`;
+
+  const byDate={};
+  DATA.counties.forEach(c=>{const d=c.saledate.split(' ')[0];(byDate[d]=byDate[d]||[]).push(c.label);});
+  document.getElementById('sales').innerHTML =
+    Object.entries(byDate).map(([d,labels])=>
+      `<span><b>${labels.join(' &amp; ')}</b> &mdash; ${fmtDate(d)} sale</span>`).join('');
+
+  const tiles=[
+    {cls:'all',key:null,num:P.length,lbl:'Active parcels'},
+    {cls:'f3',key:3,num:cnt(3),lbl:'Likely improved'},
+    {cls:'f2',key:2,num:cnt(2),lbl:'Raw acreage'},
+    {cls:'f1',key:1,num:cnt(1),lbl:'Cheap lots'},
+    {cls:'money',key:'$',num:usd(totalOwed),lbl:'Total opening bids'},
+  ];
+  document.getElementById('stats').innerHTML = tiles.map(t=>{
+    const dot=(t.key===3||t.key===2||t.key===1)?'<span class="dot"></span>':'';
+    if(t.key==='$') return `<div class="tile ${t.cls}"><span class="num">${t.num}</span>`+
+      `<span class="lbl">${t.lbl}</span></div>`;
+    return `<button class="tile ${t.cls}" data-flag="${t.key===null?'all':t.key}" `+
+      `aria-pressed="${t.key===null?'true':'false'}"><span class="num">${t.num}</span>`+
+      `<span class="lbl">${dot}${t.lbl}</span></button>`;
+  }).join('');
+
+  const chipWrap=document.getElementById('countyChips');
+  DATA.counties.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='chip'; b.dataset.county=c.label; b.setAttribute('aria-pressed','false');
+    b.innerHTML=`${esc(c.label)} <span class="c">${c.count}</span>`;
+    chipWrap.appendChild(b);
+  });
+  const allChip=document.createElement('button');
+  allChip.className='chip'; allChip.dataset.county='all';
+  allChip.setAttribute('aria-pressed','true'); allChip.textContent='All';
+  chipWrap.insertBefore(allChip, chipWrap.children[1]);
+
+  let state={flag:'all',county:'all',q:'',sort:null,dir:-1};
+
+  function apply(){
+    let rows=P.slice();
+    if(state.flag!=='all') rows=rows.filter(p=>p.priority===+state.flag);
+    if(state.county!=='all') rows=rows.filter(p=>p.county===state.county);
+    if(state.q){const q=state.q.toLowerCase();
+      rows=rows.filter(p=>(p.parcel+' '+p.name+' '+p.legal+' '+p.sale).toLowerCase().includes(q));}
+    if(state.sort) rows.sort((a,b)=>(a[state.sort]-b[state.sort])*state.dir);
+    else rows.sort((a,b)=>(b.priority-a.priority)||(b.amount-a.amount));
+    render(rows);
+  }
+
+  function render(rows){
+    const tb=document.getElementById('rows');
+    document.getElementById('shown').textContent=rows.length;
+    document.getElementById('total').textContent=P.length;
+    if(!rows.length){
+      tb.innerHTML=`<tr><td colspan="7" class="state">No parcels match these filters.</td></tr>`;
+      return;
+    }
+    tb.innerHTML=rows.map(p=>{
+      const parcel=p.link
+        ? `<a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.parcel)}</a>`
+        : `<span>${esc(p.parcel)||'&mdash;'}</span>`;
+      const acres=p.acres>0?p.acres:'<span class="dash">&mdash;</span>';
+      const tag=p.priority>0
+        ? `<span class="tag ${TAG[p.priority]}">${esc(p.tag)}</span>`
+        : `<span class="tag f0">standard</span>`;
+      const legal=esc(p.legal||p.name);
+      return `<tr>`+
+        `<td class="sale">${esc(p.sale)}</td>`+
+        `<td><span class="cty">${esc(p.county)}</span></td>`+
+        `<td class="parcel">${parcel}</td>`+
+        `<td class="num bid">${usd(p.amount)}</td>`+
+        `<td class="num">${acres}</td>`+
+        `<td>${tag}</td>`+
+        `<td class="legal" title="${legal}${p.name?' &mdash; '+esc(p.name):''}">${legal}</td>`+
+        `</tr>`;
+    }).join('');
+  }
+
+  document.getElementById('stats').addEventListener('click',e=>{
+    const t=e.target.closest('button.tile'); if(!t)return;
+    state.flag=t.dataset.flag;
+    document.querySelectorAll('button.tile').forEach(b=>
+      b.setAttribute('aria-pressed', b.dataset.flag===state.flag?'true':'false'));
+    apply();
+  });
+  chipWrap.addEventListener('click',e=>{
+    const c=e.target.closest('.chip'); if(!c)return;
+    state.county=c.dataset.county;
+    document.querySelectorAll('.chip').forEach(b=>
+      b.setAttribute('aria-pressed', b.dataset.county===state.county?'true':'false'));
+    apply();
+  });
+  document.getElementById('search').addEventListener('input',e=>{
+    state.q=e.target.value.trim(); apply();
+  });
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const key=th.dataset.sort;
+      if(state.sort===key) state.dir*=-1; else {state.sort=key; state.dir=-1;}
+      document.querySelectorAll('th.sortable').forEach(h=>{
+        h.classList.toggle('sorted',h===th);
+        h.querySelector('.arrow').innerHTML=(h===th&&state.dir===1)?'&#9650;':'&#9660;';
+      });
+      apply();
+    });
+  });
+
+  document.getElementById('foot').innerHTML=
+    `<b>Reading the flags.</b> <b style="color:var(--flag3)">Likely improved</b> &mdash; opening bid &ge; $8k, usually a structure and the biggest resale spread. `+
+    `<b style="color:var(--flag2)">Raw acreage</b> &mdash; &ge; 10 acres, best $/acre plays. `+
+    `<b style="color:var(--flag1)">Cheap lot</b> &mdash; &le; $1,500 owed, wholesale volume play.<br><br>`+
+    `Opening bid = taxes, penalties &amp; interest owed; 2025 taxes are paid separately to the county collector by Oct&nbsp;15. `+
+    `All sales final. You receive a Limited Warranty Deed &mdash; budget for a quiet-title action before reselling with title insurance. `+
+    `Verify every parcel on DataScoutPro (improvements, access, flood, liens) before bidding.`+
+    `<div class="src">Source: cosl.org &middot; auto-refreshed via GitHub Actions &middot; last update ${esc(DATA.generated)} &middot; Research tool, not financial advice.</div>`;
+
+  apply();
+}
+
+function fail(msg){
+  const s=document.getElementById('state');
+  if(s){s.className='state err';s.textContent=msg;}
+  document.getElementById('lede').textContent=
+    'Could not load the catalog data. The next scheduled refresh will retry.';
+}
+
+fetch('./data.json?_=' + Date.now(), {cache:'no-store'})
+  .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(init)
+  .catch(err=> fail('Data unavailable ('+err.message+'). If this is a fresh deploy, the first scrape may not have run yet.'));
+</script>
+</body>
+</html>
