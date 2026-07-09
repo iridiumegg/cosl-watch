@@ -52,6 +52,39 @@ HANDY COMMANDS
 Output log each run:  cosl_watch.log  (in this folder)
 
 
+LIVING WEB DASHBOARD  (GitHub Pages)
+------------------------------------
+Besides the weekly email, this repo publishes a live, filterable dashboard
+you can open in any browser. It updates itself in the cloud via GitHub
+Actions, so it stays fresh even when this PC is off.
+
+How it fits together:
+   build_data.py            scrapes the catalog and writes site/data.json
+                            (same scraper as the email; sends NO email)
+   site/index.html          the dashboard; loads data.json in the browser
+   .github/workflows/       runs build_data.py daily (~8 AM Central) and
+     pages.yml              deploys site/ to GitHub Pages
+
+FIRST-TIME PUBLISH  (one time, ~3 minutes):
+   1. Log in to GitHub once:      gh auth login
+   2. Create the repo and push:
+        gh repo create cosl-watch --public --source . --remote origin --push
+   3. Turn on Pages (Actions as the source):
+        gh api -X POST repos/{owner}/cosl-watch/pages -f build_type=workflow
+      (or in the browser: repo Settings > Pages > Source = "GitHub Actions")
+   4. Actions tab > "Refresh COSL site" > Run workflow  (does the first build).
+      Your site: https://<your-github-username>.github.io/cosl-watch/
+
+After that it refreshes on its own every day. To force an update any time,
+use the Actions tab "Run workflow" button, or just push a change.
+
+Run the site locally to preview before publishing:
+      python build_data.py
+      python -m http.server 8000 --directory site   # then open localhost:8000
+(Opening site/index.html directly as a file won't work — the browser blocks
+data.json fetches over file://; it must be served over http.)
+
+
 WHEN THE AUGUST AUCTIONS PASS
 -----------------------------
 The catalog for a sale disappears after the sale date. When COSL posts
