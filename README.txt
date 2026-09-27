@@ -78,6 +78,20 @@ FIRST-TIME PUBLISH  (one time, ~3 minutes):
 After that it refreshes on its own every day. To force an update any time,
 use the Actions tab "Run workflow" button, or just push a change.
 
+BETWEEN SEASONS / KEEPING IT RUNNING:
+   - Sale dates are found automatically. Each run checks cosl.org's catalog
+     index and switches each county to its next posted sale. The dates in
+     WATCH (cosl_watch.py) are only a fallback.
+   - Once a sale is held and COSL hasn't posted the next one, the dashboard
+     shows a "Between auction seasons" banner (not an error) and the email
+     subject says how many sales have passed.
+   - The run goes RED only when an upcoming sale scrapes 0 parcels. That
+     means COSL changed their page or the site is down. The last good data
+     stays live until it's fixed.
+   - The workflow re-enables itself every run, so GitHub's 60-day
+     inactivity shutoff can't silently stop the schedule. If it ever does
+     get disabled: Actions tab > "Refresh COSL site" > Enable workflow.
+
 Run the site locally to preview before publishing:
       python build_data.py
       python -m http.server 8000 --directory site   # then open localhost:8000

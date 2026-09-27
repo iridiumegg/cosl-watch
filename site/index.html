@@ -10,7 +10,7 @@
     --line:#dbe1ea; --line-soft:#e7ebf2;
     --ink:#131722; --muted:#626b7d; --secondary:#4a5365;
     --teal:#0e9c8f; --teal-bright:#12b5a5; --blue:#2f7fc4;
-    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4;
+    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4; --warn:#b7791f;
     --shadow:0 1px 2px rgba(19,23,34,.06),0 8px 24px rgba(19,23,34,.05);
     --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
     --font-mono:ui-monospace,"SF Mono","Cascadia Code","Segoe UI Mono",Menlo,Consolas,monospace;
@@ -21,7 +21,7 @@
       --line:#1f2632; --line-soft:#181d27;
       --ink:#e8ecf8; --muted:#6b7488; --secondary:#9aa3ba;
       --teal:#3dd6c8; --teal-bright:#3dd6c8; --blue:#4fa3e0;
-      --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0;
+      --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0; --warn:#e0a040;
       --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
     }
   }
@@ -30,7 +30,7 @@
     --line:#dbe1ea; --line-soft:#e7ebf2;
     --ink:#131722; --muted:#626b7d; --secondary:#4a5365;
     --teal:#0e9c8f; --teal-bright:#12b5a5; --blue:#2f7fc4;
-    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4;
+    --flag3:#d24545; --flag2:#0e9c8f; --flag1:#2f7fc4; --warn:#b7791f;
     --shadow:0 1px 2px rgba(19,23,34,.06),0 8px 24px rgba(19,23,34,.05);
   }
   :root[data-theme="dark"]{
@@ -38,7 +38,7 @@
     --line:#1f2632; --line-soft:#181d27;
     --ink:#e8ecf8; --muted:#6b7488; --secondary:#9aa3ba;
     --teal:#3dd6c8; --teal-bright:#3dd6c8; --blue:#4fa3e0;
-    --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0;
+    --flag3:#e05a5a; --flag2:#3dd6c8; --flag1:#4fa3e0; --warn:#e0a040;
     --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
   }
 
@@ -59,6 +59,12 @@
     display:flex;flex-wrap:wrap;gap:6px 18px;}
   .sales span{white-space:nowrap;}
   .sales b{color:var(--secondary);font-weight:600;}
+
+  .notice{margin:22px 0 0;padding:13px 16px;border-radius:10px;font-size:13.5px;
+    color:var(--ink);background:color-mix(in srgb,var(--warn) 12%,var(--panel));
+    border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);}
+  .notice b{color:var(--warn);}
+  .sales .past{text-decoration:line-through;opacity:.7;}
 
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
     gap:12px;margin:30px 0 22px;}
@@ -182,6 +188,7 @@
     <h1>Tax-Auction <span class="accent">Watch</span></h1>
     <p class="lede" id="lede">Loading the latest catalog&hellip;</p>
     <p class="sales" id="sales"></p>
+    <div class="notice" id="notice" hidden></div>
   </header>
 
   <section class="stats" id="stats"></section>
@@ -243,11 +250,27 @@ function init(DATA){
     `ranked by resale opportunity. Redemption closes 4&nbsp;PM the business day before each sale, `+
     `so parcels drop off day to day &mdash; last refreshed <b>${esc(DATA.generated)}</b>.`;
 
+  const passed=c=>c.status==='passed';
   const byDate={};
-  DATA.counties.forEach(c=>{const d=c.saledate.split(' ')[0];(byDate[d]=byDate[d]||[]).push(c.label);});
+  DATA.counties.forEach(c=>{const d=c.saledate.split(' ')[0];
+    (byDate[d]=byDate[d]||{labels:[],past:passed(c)}).labels.push(c.label);});
   document.getElementById('sales').innerHTML =
-    Object.entries(byDate).map(([d,labels])=>
-      `<span><b>${labels.join(' &amp; ')}</b> &mdash; ${fmtDate(d)} sale</span>`).join('');
+    Object.entries(byDate).map(([d,g])=>
+      `<span class="${g.past?'past':''}"><b>${g.labels.join(' &amp; ')}</b> &mdash; ${fmtDate(d)} sale${g.past?' (held)':''}</span>`).join('');
+
+  const past=DATA.counties.filter(passed);
+  if(past.length){
+    const n=document.getElementById('notice');
+    const all=past.length===DATA.counties.length;
+    n.hidden=false;
+    n.innerHTML=all
+      ? `<b>Between auction seasons.</b> Every watched sale has been held and COSL hasn&rsquo;t posted `+
+        `the next catalogs yet. This page picks up new sale dates on its own as soon as they&rsquo;re listed on cosl.org.`
+      : `<b>Sale held:</b> ${past.map(c=>esc(c.label)).join(', ')} &mdash; no newer catalog posted yet. `+
+        `Those counties will reappear once COSL lists their next sale.`;
+    if(all) document.getElementById('lede').innerHTML =
+      `No active parcels right now &mdash; last checked <b>${esc(DATA.generated)}</b>.`;
+  }
 
   const tiles=[
     {cls:'all',key:null,num:P.length,lbl:'Active parcels'},
@@ -295,7 +318,7 @@ function init(DATA){
     document.getElementById('shown').textContent=rows.length;
     document.getElementById('total').textContent=P.length;
     if(!rows.length){
-      tb.innerHTML=`<tr><td colspan="7" class="state">No parcels match these filters.</td></tr>`;
+      tb.innerHTML=`<tr><td colspan="7" class="state">${P.length?'No parcels match these filters.':'No parcels in the catalog right now.'}</td></tr>`;
       return;
     }
     tb.innerHTML=rows.map(p=>{

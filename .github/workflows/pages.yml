@@ -20,6 +20,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write            # keepalive step re-enables this workflow
 
 # Never let two deploys run at once; let a newer run supersede an in-flight one.
 concurrency:
@@ -33,6 +34,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      # GitHub disables scheduled workflows after 60 days with no repo
+      # activity. Re-enabling it on every run resets that timer so the daily
+      # refresh never silently stops.
+      - name: Keep schedule alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/pages.yml/enable"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5

@@ -8,12 +8,21 @@ GitHub Pages dashboard (site/index.html) fresh. It can also be run by hand:
 
     python build_data.py
 
-Writes <this folder>/site/data.json. Exits 0 even if some counties fail to
-scrape (their section just shows zero parcels), so a single flaky county
-never blocks the whole site update.
+Writes <this folder>/site/data.json. Each county gets a status:
+    ok      catalog scraped
+    empty   sale is upcoming but the catalog returned 0 parcels
+    error   the scrape raised
+    passed  the sale date is over and COSL hasn't posted a newer one yet
+
+Exit code: 1 when there is at least one upcoming sale and NONE of them
+returned parcels (the scraper or the site broke). The workflow then fails
+visibly and skips the deploy, so the last good data stays live. When every
+sale has simply passed, it exits 0 with a warning and the dashboard shows a
+"sales have passed" banner instead of an empty table.
 """
 
 import os
+import sys
 import json
 import datetime as dt
 
@@ -40,16 +49,27 @@ def _stamp() -> str:
 
 def build() -> dict:
     out = {"generated": _stamp(), "counties": [], "parcels": []}
-    for w in c.WATCH:
-        try:
-            parcels = c.rank(c.fetch_catalog(w["county"], w["saledate"]))
-            print(f"[ok] {w['label']}: {len(parcels)} parcels")
-        except Exception as e:            # noqa: BLE001 -- keep other counties alive
-            parcels = []
-            print(f"[err] {w['label']}: {e}")
+    for w in c.resolve_watch():
+        parcels = []
+        if c.sale_passed(w["saledate"]):
+            status = "passed"
+            print(f"[warn] {w['label']}: sale {w['saledate']} already passed; "
+                  "no newer catalog posted yet")
+        else:
+            try:
+                parcels = c.rank(c.fetch_catalog(w["county"], w["saledate"]))
+                status = "ok" if parcels else "empty"
+                # Catalog empties once the auction starts; that's not a failure.
+                if status == "empty" and c.sale_passed(w["saledate"],
+                                                       dt.date.today() + dt.timedelta(days=1)):
+                    status = "passed"
+                print(f"[{'ok' if parcels else 'warn'}] {w['label']}: {len(parcels)} parcels")
+            except Exception as e:        # noqa: BLE001 -- keep other counties alive
+                status = "error"
+                print(f"[err] {w['label']}: {e}")
         out["counties"].append({
             "label": w["label"], "code": w["county"],
-            "saledate": w["saledate"], "count": len(parcels),
+            "saledate": w["saledate"], "count": len(parcels), "status": status,
         })
         for p in parcels:
             out["parcels"].append({
@@ -61,6 +81,22 @@ def build() -> dict:
     return out
 
 
+def health(data: dict) -> int:
+    """Exit code for the run; prints GitHub Actions annotations."""
+    counties = data["counties"]
+    live = [x for x in counties if x["status"] != "passed"]
+    if live and not any(x["status"] == "ok" for x in live):
+        detail = ", ".join(f"{x['label']} ({x['status']})" for x in live)
+        print(f"::error::No parcels scraped for any upcoming sale: {detail}. "
+              "COSL may have changed the catalog page, or the site is down.")
+        return 1
+    if not live:
+        print("::warning::Every watched sale date has passed and COSL hasn't "
+              "posted newer catalogs yet. The dashboard will show that; it "
+              "picks up new sales on its own once they're posted.")
+    return 0
+
+
 def main():
     data = build()
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -68,6 +104,7 @@ def main():
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     print(f"[ok] wrote {OUT_FILE}: "
           f"{len(data['parcels'])} parcels across {len(data['counties'])} counties")
+    sys.exit(health(data))
 
 
 if __name__ == "__main__":

@@ -26,7 +26,9 @@ from bs4 import BeautifulSoup
 
 # Counties + sale dates to watch. COSL uses 4-letter county codes.
 # Format the saledate EXACTLY as it appears in the catalog URL (M/D/YYYY H:MM:SS AM).
-# When this year's NWA auctions pass, update these to next year's posted dates.
+# These dates are only a FALLBACK: each run first checks COSL's catalog index
+# (discover_saledates) and switches to the county's next posted sale on its
+# own. Only edit these if discovery stops finding catalogs.
 WATCH = [
     {"county": "BENT", "label": "Benton",     "saledate": "8/11/2026 10:00:00 AM"},
     {"county": "WASH", "label": "Washington", "saledate": "8/11/2026 10:00:00 AM"},
@@ -114,6 +116,67 @@ def fetch_catalog(county: str, saledate: str) -> list[dict]:
     return parcels
 
 
+def parse_saledate(s: str):
+    """'8/11/2026 10:00:00 AM' -> datetime, or None if unparseable."""
+    try:
+        return dt.datetime.strptime(s.strip(), "%m/%d/%Y %I:%M:%S %p")
+    except (ValueError, AttributeError):
+        return None
+
+
+def sale_passed(saledate: str, today: dt.date | None = None) -> bool:
+    """True once the sale day is over (the catalog is empty after that)."""
+    d = parse_saledate(saledate)
+    return bool(d) and d.date() < (today or dt.date.today())
+
+
+def discover_saledates() -> dict[str, list[str]]:
+    """Scan COSL's catalog index for CatalogView links.
+
+    Returns {county_code: [saledate, ...]} for every catalog currently posted.
+    Pulls the county/saledate straight out of the link query strings, so it
+    doesn't depend on the page layout. Returns {} if the index can't be read.
+    """
+    from urllib.parse import urlparse, parse_qs
+    found: dict[str, set[str]] = {}
+    for path in ("/Home/Contents", "/"):
+        try:
+            r = requests.get(BASE + path, headers=HEADERS, timeout=60)
+            r.raise_for_status()
+        except requests.RequestException:
+            continue
+        for a in BeautifulSoup(r.text, "html.parser").find_all("a", href=True):
+            if "catalogview" not in a["href"].lower():
+                continue
+            q = {k.lower(): v for k, v in parse_qs(urlparse(a["href"]).query).items()}
+            county, sale = q.get("county", [""])[0].upper(), q.get("saledate", [""])[0]
+            if county and parse_saledate(sale):
+                found.setdefault(county, set()).add(sale)
+    return {k: sorted(v, key=parse_saledate) for k, v in found.items()}
+
+
+def resolve_watch(today: dt.date | None = None) -> list[dict]:
+    """WATCH with each county's saledate swapped for the next posted sale.
+
+    If COSL lists a sale for the county that is today or later, use the
+    soonest one. Otherwise keep the configured date (which may have passed;
+    callers flag that with sale_passed()).
+    """
+    today = today or dt.date.today()
+    posted = discover_saledates()
+    out = []
+    for w in WATCH:
+        w = dict(w)
+        upcoming = [s for s in posted.get(w["county"], [])
+                    if parse_saledate(s).date() >= today]
+        if upcoming and upcoming[0] != w["saledate"]:
+            print(f"[info] {w['label']}: using posted sale {upcoming[0]} "
+                  f"(config has {w['saledate']})")
+            w["saledate"] = upcoming[0]
+        out.append(w)
+    return out
+
+
 def _pick_data_table(soup):
     tables = soup.find_all("table")
     if not tables:
@@ -175,7 +238,7 @@ def rank(parcels: list[dict]) -> list[dict]:
 
 PRIORITY_COLOR = {3: "#e05a5a", 2: "#3dd6c8", 1: "#4fa3e0", 0: "#5a6280"}
 
-def build_html(all_results: dict[str, list[dict]]) -> str:
+def build_html(all_results: dict[str, list[dict]], issues: list[str] = ()) -> str:
     today = dt.date.today().strftime("%A, %B %d, %Y")
     total = sum(len(v) for v in all_results.values())
     css = """
@@ -199,6 +262,9 @@ def build_html(all_results: dict[str, list[dict]]) -> str:
     parts = [f"<html><head><style>{css}</style></head><body>",
              "<h1>COSL Tax-Auction Watch</h1>",
              f"<p class='sub'>Weekly digest &middot; {today} &middot; {total} active parcels tracked</p>"]
+    if issues:
+        parts.append("<p style='color:#e0a040;font-size:12px'>&#9888; "
+                     + "<br>&#9888; ".join(issues) + "</p>")
 
     for label, parcels in all_results.items():
         if not parcels:
@@ -259,7 +325,13 @@ def send_email(html: str, subject: str):
 def main():
     all_results = {}
     errors = []
-    for w in WATCH:
+    for w in resolve_watch():
+        if sale_passed(w["saledate"]):
+            errors.append(f"{w['label']}: sale {w['saledate']} already passed")
+            all_results[w["label"]] = []
+            print(f"[warn] {w['label']}: sale {w['saledate']} already passed; "
+                  "no newer catalog posted yet", file=sys.stderr)
+            continue
         try:
             parcels = rank(fetch_catalog(w["county"], w["saledate"]))
             all_results[w["label"]] = parcels
@@ -271,8 +343,8 @@ def main():
 
     subject = f"COSL Tax-Auction Watch — {dt.date.today():%b %d}"
     if errors:
-        subject += f" ({len(errors)} scrape error{'s' if len(errors) > 1 else ''})"
-    html = build_html(all_results)
+        subject += f" ({len(errors)} issue{'s' if len(errors) > 1 else ''})"
+    html = build_html(all_results, errors)
 
     # Local backup copy every run
     stamp = dt.date.today().isoformat()
