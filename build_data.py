@@ -14,6 +14,10 @@ Writes <this folder>/site/data.json. Each county gets a status:
     error   the scrape raised
     passed  the sale date is over and COSL hasn't posted a newer one yet
 
+It also pulls each county's Post Auction Sales list (parcels that didn't sell
+live and are offered again online), tagged source="post" in data.json, so
+the dashboard has something to show between auction seasons.
+
 Exit code: 1 when there is at least one upcoming sale and NONE of them
 returned parcels (the scraper or the site broke). The workflow then fails
 visibly and skips the deploy, so the last good data stays live. When every
@@ -71,14 +75,31 @@ def build() -> dict:
             "label": w["label"], "code": w["county"],
             "saledate": w["saledate"], "count": len(parcels), "status": status,
         })
-        for p in parcels:
-            out["parcels"].append({
-                "county": w["label"], "sale": p["sale"], "parcel": p["parcel"],
-                "name": p["name"], "legal": p["legal"], "amount": p["amount"],
-                "acres": p["acres"], "priority": p["priority"], "tag": p["tag"],
-                "link": p["link"],
-            })
+        _add(out, w["label"], parcels, "auction")
+
+    # Post-auction list: parcels that didn't sell live, offered again online.
+    out["post"] = []
+    for w in c.WATCH:
+        try:
+            parcels = c.rank(c.fetch_post_auction(w["label"]))
+            status = "ok"
+            print(f"[ok] {w['label']} post-auction: {len(parcels)} parcels")
+        except Exception as e:            # noqa: BLE001
+            parcels, status = [], "error"
+            print(f"[err] {w['label']} post-auction: {e}")
+        out["post"].append({"label": w["label"], "count": len(parcels), "status": status})
+        _add(out, w["label"], parcels, "post")
     return out
+
+
+def _add(out: dict, county: str, parcels: list[dict], source: str):
+    for p in parcels:
+        out["parcels"].append({
+            "county": county, "source": source, "sale": p["sale"],
+            "parcel": p["parcel"], "name": p["name"], "legal": p["legal"],
+            "amount": p["amount"], "acres": p["acres"], "priority": p["priority"],
+            "tag": p["tag"], "link": p["link"],
+        })
 
 
 def health(data: dict) -> int:
@@ -90,6 +111,10 @@ def health(data: dict) -> int:
         print(f"::error::No parcels scraped for any upcoming sale: {detail}. "
               "COSL may have changed the catalog page, or the site is down.")
         return 1
+    post = data.get("post", [])
+    if post and all(x["status"] == "error" for x in post):
+        print("::warning::Post-auction list could not be read for any county. "
+              "COSL may have changed that page's layout.")
     if not live:
         print("::warning::Every watched sale date has passed and COSL hasn't "
               "posted newer catalogs yet. The dashboard will show that; it "

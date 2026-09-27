@@ -108,6 +108,10 @@
   .chip[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);
     color:#07100f;font-weight:650;}
   .chip[aria-pressed="true"] .c{color:#07100f;opacity:.7;}
+  .filters{display:flex;flex-direction:column;gap:10px;}
+  .src-post{display:inline-block;font-family:var(--font-sans);font-size:10px;font-weight:700;
+    letter-spacing:.06em;color:var(--blue);border:1px solid color-mix(in srgb,var(--blue) 40%,transparent);
+    border-radius:4px;padding:1px 6px;}
   .search{position:relative;}
   .search input{font-family:inherit;font-size:13px;color:var(--ink);
     background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
@@ -194,7 +198,10 @@
   <section class="stats" id="stats"></section>
 
   <div class="toolbar" id="toolbar" hidden>
-    <div class="chips" id="countyChips"><span class="ttl">County</span></div>
+    <div class="filters">
+      <div class="chips" id="countyChips"><span class="ttl">County</span></div>
+      <div class="chips" id="srcChips" hidden><span class="ttl">List</span></div>
+    </div>
     <div class="search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
       <input id="search" type="search" placeholder="Search parcel, owner, legal&hellip;" autocomplete="off" aria-label="Search parcels">
@@ -209,7 +216,7 @@
             <th>Sale&nbsp;#</th>
             <th>County</th>
             <th>Parcel</th>
-            <th class="num sortable" data-sort="amount">Opening&nbsp;Bid<span class="arrow">&#9660;</span></th>
+            <th class="num sortable" data-sort="amount">Bid&nbsp;/&nbsp;Price<span class="arrow">&#9660;</span></th>
             <th class="num sortable" data-sort="acres">Acres<span class="arrow">&#9660;</span></th>
             <th>Flag</th>
             <th>Legal / Owner</th>
@@ -237,7 +244,8 @@ const fmtDate = s=>{const[m,d,y]=s.split(' ')[0].split('/');
 const TAG={3:'f3',2:'f2',1:'f1',0:'f0'};
 
 function init(DATA){
-  const P = DATA.parcels;
+  const P = DATA.parcels.map(p=>({...p,source:p.source||'auction'}));
+  const nPost = P.filter(p=>p.source==='post').length;
   const cnt = pr => P.filter(p=>p.priority===pr).length;
   const totalOwed = P.reduce((s,p)=>s+p.amount,0);
 
@@ -246,7 +254,8 @@ function init(DATA){
   document.getElementById('resultbar').hidden = false;
 
   document.getElementById('lede').innerHTML =
-    `<b>${P.length}</b> active parcels across <b>${DATA.counties.length}</b> Northwest Arkansas counties, `+
+    `<b>${P.length}</b> active parcels across <b>${DATA.counties.length}</b> Northwest Arkansas counties`+
+    (nPost?` (<b>${nPost}</b> on the post-auction list)`:'')+`, `+
     `ranked by resale opportunity. Redemption closes 4&nbsp;PM the business day before each sale, `+
     `so parcels drop off day to day &mdash; last refreshed <b>${esc(DATA.generated)}</b>.`;
 
@@ -268,7 +277,11 @@ function init(DATA){
         `the next catalogs yet. This page picks up new sale dates on its own as soon as they&rsquo;re listed on cosl.org.`
       : `<b>Sale held:</b> ${past.map(c=>esc(c.label)).join(', ')} &mdash; no newer catalog posted yet. `+
         `Those counties will reappear once COSL lists their next sale.`;
-    if(all) document.getElementById('lede').innerHTML =
+    if(all && nPost) n.innerHTML =
+      `<b>Between auction seasons.</b> Every watched live sale has been held. Showing the `+
+      `<b>${nPost}</b> parcel${nPost===1?'':'s'} on COSL&rsquo;s post-auction list &mdash; unsold parcels offered again `+
+      `through COSL&rsquo;s online post-auction system. New live-sale catalogs will appear here on their own once posted.`;
+    if(all && !nPost) document.getElementById('lede').innerHTML =
       `No active parcels right now &mdash; last checked <b>${esc(DATA.generated)}</b>.`;
   }
 
@@ -292,7 +305,7 @@ function init(DATA){
   DATA.counties.forEach(c=>{
     const b=document.createElement('button');
     b.className='chip'; b.dataset.county=c.label; b.setAttribute('aria-pressed','false');
-    b.innerHTML=`${esc(c.label)} <span class="c">${c.count}</span>`;
+    b.innerHTML=`${esc(c.label)} <span class="c">${P.filter(p=>p.county===c.label).length}</span>`;
     chipWrap.appendChild(b);
   });
   const allChip=document.createElement('button');
@@ -300,12 +313,23 @@ function init(DATA){
   allChip.setAttribute('aria-pressed','true'); allChip.textContent='All';
   chipWrap.insertBefore(allChip, chipWrap.children[1]);
 
-  let state={flag:'all',county:'all',q:'',sort:null,dir:-1};
+  const srcWrap=document.getElementById('srcChips');
+  if(nPost){
+    srcWrap.hidden=false;
+    [['all','All',P.length],['auction','Live auction',P.length-nPost],['post','Post-auction',nPost]].forEach(([k,l,n])=>{
+      const b=document.createElement('button');
+      b.className='chip'; b.dataset.src=k; b.setAttribute('aria-pressed',k==='all'?'true':'false');
+      b.innerHTML=`${l} <span class="c">${n}</span>`; srcWrap.appendChild(b);
+    });
+  }
+
+  let state={flag:'all',county:'all',src:'all',q:'',sort:null,dir:-1};
 
   function apply(){
     let rows=P.slice();
     if(state.flag!=='all') rows=rows.filter(p=>p.priority===+state.flag);
     if(state.county!=='all') rows=rows.filter(p=>p.county===state.county);
+    if(state.src!=='all') rows=rows.filter(p=>p.source===state.src);
     if(state.q){const q=state.q.toLowerCase();
       rows=rows.filter(p=>(p.parcel+' '+p.name+' '+p.legal+' '+p.sale).toLowerCase().includes(q));}
     if(state.sort) rows.sort((a,b)=>(a[state.sort]-b[state.sort])*state.dir);
@@ -331,7 +355,7 @@ function init(DATA){
         : `<span class="tag f0">standard</span>`;
       const legal=esc(p.legal||p.name);
       return `<tr>`+
-        `<td class="sale">${esc(p.sale)}</td>`+
+        `<td class="sale">${p.source==='post'?'<span class="src-post" title="Post-auction list">POST</span>':esc(p.sale)}</td>`+
         `<td><span class="cty">${esc(p.county)}</span></td>`+
         `<td class="parcel">${parcel}</td>`+
         `<td class="num bid">${usd(p.amount)}</td>`+
@@ -352,8 +376,15 @@ function init(DATA){
   chipWrap.addEventListener('click',e=>{
     const c=e.target.closest('.chip'); if(!c)return;
     state.county=c.dataset.county;
-    document.querySelectorAll('.chip').forEach(b=>
+    chipWrap.querySelectorAll('.chip').forEach(b=>
       b.setAttribute('aria-pressed', b.dataset.county===state.county?'true':'false'));
+    apply();
+  });
+  srcWrap.addEventListener('click',e=>{
+    const c=e.target.closest('.chip'); if(!c)return;
+    state.src=c.dataset.src;
+    srcWrap.querySelectorAll('.chip').forEach(b=>
+      b.setAttribute('aria-pressed', b.dataset.src===state.src?'true':'false'));
     apply();
   });
   document.getElementById('search').addEventListener('input',e=>{
@@ -375,6 +406,8 @@ function init(DATA){
     `<b>Reading the flags.</b> <b style="color:var(--flag3)">Likely improved</b> &mdash; opening bid &ge; $8k, usually a structure and the biggest resale spread. `+
     `<b style="color:var(--flag2)">Raw acreage</b> &mdash; &ge; 10 acres, best $/acre plays. `+
     `<b style="color:var(--flag1)">Cheap lot</b> &mdash; &le; $1,500 owed, wholesale volume play.<br><br>`+
+    `<b>POST</b> rows are on COSL&rsquo;s Post Auction Sales list: parcels that didn&rsquo;t sell live, offered again through COSL&rsquo;s online post-auction system `+
+    `about 30 days after the auction; the price shown is taxes due. The owner can still redeem for 10 business days after the post-auction sale date (you&rsquo;d be refunded).<br><br>`+
     `Opening bid = taxes, penalties &amp; interest owed; 2025 taxes are paid separately to the county collector by Oct&nbsp;15. `+
     `All sales final. You receive a Limited Warranty Deed &mdash; budget for a quiet-title action before reselling with title insurance. `+
     `Verify every parcel on DataScoutPro (improvements, access, flood, liens) before bidding.`+

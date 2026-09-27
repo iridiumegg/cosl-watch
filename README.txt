@@ -88,6 +88,12 @@ BETWEEN SEASONS / KEEPING IT RUNNING:
    - The run goes RED only when an upcoming sale scrapes 0 parcels. That
      means COSL changed their page or the site is down. The last good data
      stays live until it's fixed.
+   - POST-AUCTION LIST: each run also reads COSL's Post Auction Sales list
+     for your counties (parcels that didn't sell live and are offered again
+     online ~30 days later). They show on the dashboard with a POST badge
+     and a "Post-auction" filter, and get their own section in the email.
+     Price shown = taxes due. Owner can still redeem for 10 business days
+     after the post-auction sale date.
    - The workflow re-enables itself every run, so GitHub's 60-day
      inactivity shutoff can't silently stop the schedule. If it ever does
      get disabled: Actions tab > "Refresh COSL site" > Enable workflow.

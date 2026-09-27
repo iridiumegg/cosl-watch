@@ -116,6 +116,59 @@ def fetch_catalog(county: str, saledate: str) -> list[dict]:
     return parcels
 
 
+def fetch_post_auction(label: str) -> list[dict]:
+    """Parcels on COSL's Post Auction Sales list for one county.
+
+    These are parcels that didn't sell at the live auction; COSL offers them
+    again ~30 days later through its online post-auction system. The page is
+    a Bootstrap grid (div.row > div.col-sm), not a table. Header row:
+    Del Year | Parcel | Legal | Acres | Liens | Owner | Taxes Due.
+    Raises ValueError if the header row is missing (layout changed).
+    """
+    url = f"{BASE}/Home/PostAuctionView"
+    r = requests.get(url, params={"county": label.upper()}, headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
+    root = soup.find("main") or soup
+
+    header, parcels = None, []
+    for row in root.find_all("div", class_="row"):
+        cells = row.find_all("div", class_="col-sm", recursive=False)
+        texts = [c.get_text(" ", strip=True) for c in cells]
+        if header is None:
+            low = [t.lower() for t in texts]
+            if "parcel" in low and any("tax" in t for t in low):
+                header = low
+            continue
+        if len(cells) != len(header):
+            continue
+
+        def col(name):
+            for i, h in enumerate(header):
+                if name in h:
+                    return texts[i]
+            return ""
+
+        a = row.find("a", href=True)
+        legal = col("legal")
+        acres_s = col("acres")
+        try:
+            acres = float(acres_s)
+        except ValueError:
+            acres = _acres(legal)
+        rec = {
+            "sale": "", "parcel": col("parcel"), "name": col("owner"),
+            "legal": legal, "amount": _money(col("tax")), "acres": acres,
+            "link": (a["href"] if a["href"].startswith("http") else BASE + a["href"]) if a else "",
+            "delyear": col("year"), "liens": col("lien").strip(". "),
+        }
+        if rec["parcel"]:
+            parcels.append(rec)
+    if header is None:
+        raise ValueError("post-auction header row not found (page layout changed?)")
+    return parcels
+
+
 def parse_saledate(s: str):
     """'8/11/2026 10:00:00 AM' -> datetime, or None if unparseable."""
     try:
@@ -340,6 +393,17 @@ def main():
             errors.append(f"{w['label']}: {e}")
             all_results[w["label"]] = []
             print(f"[err] {w['label']}: {e}", file=sys.stderr)
+
+    for w in WATCH:
+        try:
+            post = rank(fetch_post_auction(w["label"]))
+            print(f"[ok] {w['label']} post-auction: {len(post)} parcels")
+        except Exception as e:
+            post = []
+            errors.append(f"{w['label']} post-auction: {e}")
+            print(f"[err] {w['label']} post-auction: {e}", file=sys.stderr)
+        if post:
+            all_results[f"{w['label']} &middot; post-auction"] = post
 
     subject = f"COSL Tax-Auction Watch — {dt.date.today():%b %d}"
     if errors:
